@@ -31,13 +31,14 @@ After the first run, all the configurations from CUCM has been pulled and stored
 
 Please note that in the script, the configuration items that are to be monitored are mentioned under templates as a key value pair. Key indicates the name of the configuration item such as DevicePool, TransPattern, RoutePattern and value being the sql query to pull the details of those items. The format of key in the template variable is same as what the listChange API outputs when the particular configuration has been changed.If you would like to add additional items to monitor, then use the exact syntax mentioned in the AXL Schema Reference guide per your CUCM verison - https://developer.cisco.com/docs/axl-schema-reference/.
 
-<img width="1556" height="280" alt="image" src="https://github.com/user-attachments/assets/0ae68df7-fcef-4ef1-b106-e8ff783c0b5b" />
+<img width="1370" height="380" alt="image" src="https://github.com/user-attachments/assets/d7b9d3af-9c54-463c-8b97-424987b01666" />
 
 list_all_configs lists all the configuration items that this script currently monitors.
 
-<img width="1000" height="952" alt="image" src="https://github.com/user-attachments/assets/0c2ad804-9dc6-4115-8bc1-3a720f537dcc" />
+<img width="640" height="940" alt="image" src="https://github.com/user-attachments/assets/2d7550fe-7a04-48f7-9aa9-7ecad06e836e" />
 
 Initialize the script by selecting the command list_changes with the mode parameter to initiate the listChange API request and for continuous monitoring. This app should run continuously to receive changes from CUCM and update the corresponding running config file and to accept the commit messages from admin. After admin commits the change with the message, a confirmation email will be sent to the admin team with the name of the committer, commit message and the change details.
 
-<img width="1310" height="488" alt="image" src="https://github.com/user-attachments/assets/a5441de7-7448-4f5d-97b7-636e6b4c748a" />
+<img width="1242" height="492" alt="image" src="https://github.com/user-attachments/assets/1e2a972c-efda-4c80-9d9e-e677a92d80d0" />
+
 
