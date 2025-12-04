@@ -1,21 +1,22 @@
 # Cisco-Unified-Communications-CUCM-Configuration-Tracker
 Scripts for managing Cisco Unified Communications Manager
 
-This script is designed for continuous monitoring of configuration changes in Cisco Unified Communications Manager and emails admin team with the change details, if the change is detected, which is different from the standard base config that was configured during the initial installation. The admin can then review the change and commit, if it was intentional or revert if it was for testing or accidental change.
+This script is designed for continuous monitoring of configuration changes in Cisco Unified Communications Manager and emails admin team with the change details if the change is detected and it is different from the standard base config that was configured during the initial installation. The admin can then review the change and commit, if it was intentional or revert if it was for testing or accidental change.
 
 **Code Base Logic**
 The script uses the CUCM AXL List Change API to monitor for any changes in the dataase. List change API provides the following details if there are any changes in the system.
-  action - indicates the type change: u is update, a is add, r is remove
-  doGet - Boolean value indicates when the client should perform a get operation to get the full details of the object.
-  type - Changed configuration item. Ex: DevicePool, RoutePattern, TransPattern.
-  ChangedTags - Contains name of the configuration field that was changed and the changed value. For example, Changed Configuration field is Description and the value is "Jon Doe".
+
+  **action** - indicates the type change: u is update, a is add, r is remove
+  **doGet** - Boolean value indicates when the client should perform a get operation to get the full details of the object.
+  **type** - Changed configuration item. Ex: DevicePool, RoutePattern, TransPattern.
+  **ChangedTags** - Contains name of the configuration field that was changed and the changed value. For example, Changed Configuration field is                      Description and the value is "Jon Doe".
   Based on the action keyword, it can be determined whether this was the new add or update or remove.
 
 Here is the sample output, which indicates that the new routepattern was added, routelist was updated, devicepool name was changed and provides the old value and new value. UUID field indicates the unique identifier of the each configuration item. This UUID field is being used to retrieve the new config from CUCM and update the running config file.
 
   <img width="1386" height="614" alt="image" src="https://github.com/user-attachments/assets/3835bc35-93a6-4ab2-ba25-72cf533a894e" />
 
-Upon receiving the change details, based on the type, action and the change details the script pulls the complete configuration details from CUCM using sql query and updates the corresponding running configuration file and emails the admin team notifiying the changed item and the procedure to commit the change to the base config.
+Upon receiving the change details, based on the type, action and the change details, the script pulls the complete configuration details from CUCM using sql query and updates the corresponding running configuration file and emails the admin team notifiying the changed item and the procedure to commit the change to the base config.
 
 **Requirements**
 
@@ -24,7 +25,7 @@ RunningConfigFile - Create the directory called runningconfig in the same locati
 
 **Procedure**
 
-The csv's that are copied into the baseconfig direcotry are empty files, when the script first runs, it copies the header from the baseconfig template csv's and create a running config csv in the runningconfig directory. Then the sql query is been made to the CUCM to pull all the config and updates the runningconfig csv.
+The csv's that are copied into the baseconfig directory are empty files. When the script first runs, it copies the header from the baseconfig template csv's and create a running config csv in the runningconfig directory. Then the sql query is been made to the CUCM to pull all the config and updates the runningconfig csv.
 
 After the first run, all the configurations from CUCM has been pulled and stored as a csv in the running config. Now, the templates in the baseconfig directory can be replaced with the runningconfig csv's by directly copying over the files (only during the initial setup and then monitor and commit going forward)
 
@@ -36,7 +37,7 @@ list_all_configs lists all the configuration items that this script currently mo
 
 <img width="1000" height="952" alt="image" src="https://github.com/user-attachments/assets/0c2ad804-9dc6-4115-8bc1-3a720f537dcc" />
 
-Initialize the script by selecting the command list_changes with the mode parameter to initiate the listChange API request and continuous monitor.
-This app should run continuously to receive changes from CUCM and update the corresponding running config file and emails the user mentioned in the initiating command. 
+Initialize the script by selecting the command list_changes with the mode parameter to initiate the listChange API request and for continuous monitoring. This app should run continuously to receive changes from CUCM and update the corresponding running config file and to accept the commit messages from admin. After admin commits the change with the message, a confirmation email will be sent to the admin team with the name of the committer, commit message and the change details.
 
-<img width="1622" height="484" alt="image" src="https://github.com/user-attachments/assets/f69d0410-d0d4-4314-becb-1488c7279c11" />
+<img width="1310" height="488" alt="image" src="https://github.com/user-attachments/assets/a5441de7-7448-4f5d-97b7-636e6b4c748a" />
+
