@@ -31,7 +31,7 @@ After the first run, all the configurations from CUCM has been pulled and stored
 
 Please note that in the script, the configuration items that are to be monitored are mentioned under templates as a key value pair. Key indicates the name of the configuration item such as DevicePool, TransPattern, RoutePattern and value being the sql query to pull the details of those items. The format of key in the template variable is same as what the listChange API outputs when the particular configuration has been changed.If you would like to add additional items to monitor, then use the exact syntax mentioned in the AXL Schema Reference guide per your CUCM verison - https://developer.cisco.com/docs/axl-schema-reference/.
 
-<img width="1370" height="380" alt="image" src="https://github.com/user-attachments/assets/d7b9d3af-9c54-463c-8b97-424987b01666" />
+<img width="1538" height="370" alt="image" src="https://github.com/user-attachments/assets/b5600808-f0fd-4f6a-baa0-e8213aa6a063" />
 
 list_all_configs lists all the configuration items that this script currently monitors.
 
@@ -39,6 +39,6 @@ list_all_configs lists all the configuration items that this script currently mo
 
 Initialize the script by selecting the command list_changes with the mode parameter to initiate the listChange API request and for continuous monitoring. This app should run continuously to receive changes from CUCM and update the corresponding running config file and to accept the commit messages from admin. After admin commits the change with the message, a confirmation email will be sent to the admin team with the name of the committer, commit message and the change details.
 
-<img width="1242" height="492" alt="image" src="https://github.com/user-attachments/assets/1e2a972c-efda-4c80-9d9e-e677a92d80d0" />
+<img width="1390" height="476" alt="image" src="https://github.com/user-attachments/assets/943cbed1-74f4-4d25-9eb9-ebac5b314f63" />
 
 
