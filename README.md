@@ -19,10 +19,24 @@ Upon receiving the change details, based on the type, action and the change deta
 
 **Requirements**
 
-BaseConfigFile - Initial configurations of all items that you would like to monitor through this script. This is being stored as a csv's for each config items. In the script, it is mentioned under templates as a key value pair. Key indicates the name of the configuration item such as DevicePool, TransPattern, RoutePattern and value being the sql query to pull the details of those items. The format of key in the template variable is same as what the listChange API outputs when the particular configuration has been changed.
+BaseConfigFile - Create the directory called baseconfig and copy the csv templates present under the template folder to store the base config. 
+RunningConfigFile - Create the directory called runningconfig in the same location as baseconfig. Nothing else needed.
 
-<img width="1494" height="836" alt="image" src="https://github.com/user-attachments/assets/99980c7d-807d-44a4-86b9-5e86cbcad7b7" />
+**Procedure**
 
+The csv's that are copied into the baseconfig direcotry are empty files, when the script first runs, it copies the header from the baseconfig template csv's and create a running config csv in the runningconfig directory. Then the sql query is been made to the CUCM to pull all the config and updates the runningconfig csv.
 
-RunningConfigFile
+After the first run, all the configurations from CUCM has been pulled and stored as a csv in the running config. Now, the templates in the baseconfig directory can be replaced with the runningconfig csv's by directly copying over the files (only during the initial setup and then monitor and commit going forward)
 
+Please note that in the script, the configuration items that are to be monitored are mentioned under templates as a key value pair. Key indicates the name of the configuration item such as DevicePool, TransPattern, RoutePattern and value being the sql query to pull the details of those items. The format of key in the template variable is same as what the listChange API outputs when the particular configuration has been changed.If you would like to add additional items to monitor, then use the exact syntax mentioned in the AXL Schema Reference guide per your CUCM verison - https://developer.cisco.com/docs/axl-schema-reference/.
+
+<img width="1556" height="280" alt="image" src="https://github.com/user-attachments/assets/0ae68df7-fcef-4ef1-b106-e8ff783c0b5b" />
+
+list_all_configs lists all the configuration items that this script currently monitors.
+
+<img width="1000" height="952" alt="image" src="https://github.com/user-attachments/assets/0c2ad804-9dc6-4115-8bc1-3a720f537dcc" />
+
+Initialize the script by selecting the command list_changes with the mode parameter to initiate the listChange API request and continuous monitor.
+This app should run continuously to receive changes from CUCM and update the corresponding running config file and emails the user mentioned in the initiating command. 
+
+<img width="1622" height="484" alt="image" src="https://github.com/user-attachments/assets/f69d0410-d0d4-4314-becb-1488c7279c11" />
