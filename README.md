@@ -23,16 +23,27 @@ Upon receiving the change details, based on the type, action and the change deta
 
 Clone the repo
 
-`git clone https://github.com/usharanig92/Cisco-Unified-Communications-CUCM-Config-Tracker.git
-`
-This script uses the uv to install the required depenedencies. The script can be simply run with the command `uv run cucmconfigtracker.py <necessary-arguments>`.
+`git clone https://github.com/usharanig92/Cisco-Unified-Communications-CUCM-Config-Tracker.git`  
+
+This script uses uv to install the required depenedencies. The script can be simply run with the command `uv run cucmconfigtracker.py <necessary-arguments>`. Refer https://github.com/astral-sh/uv to know more about uv package manager.
 
 BaseConfigFile - Create the directory called baseconfig and copy the csv templates present under the template folder to store the base config. 
 RunningConfigFile - Create the directory called runningconfig in the same location as baseconfig. Nothing else needed.
 
-**Procedure**
+This location of the BaseConfigFile and RunningConfigFile is required in the script to constantly update the running config and the base config.  In the script the below function refers to the location of the config paths. Please update this function with the location of the above files.
 
-The csv's that are copied into the baseconfig directory are empty files. When the script first runs, it copies the header from the baseconfig template csv's and create a running config csv in the runningconfig directory. Then the sql query is been made to the CUCM to pull all the config and updates the runningconfig csv.
+```Python
+
+def get_config_relative_path(which_config, name, mode):
+    path = f"/usr/usha/application/unified-communications/{mode}/configs" # update the path to be the location of your BaseConfigFile and RunningConfigFile.
+    config_path = os.path.join(path, which_config, name) + ".csv"
+    return config_path
+
+```
+
+## Usage
+
+The csv's that are copied into the baseconfig directory are empty files. When the script first runs, it copies the header from the baseconfig template csv's and create a running config csv in the runningconfig directory. Then the sql query is been made to the CUCM to pull all the config and updates the runningconfig csv's.
 
 After the first run, all the configurations from CUCM has been pulled and stored as a csv in the running config. Now, the templates in the baseconfig directory can be replaced with the runningconfig csv's by directly copying over the files (only during the initial setup and then monitor and commit going forward)
 
