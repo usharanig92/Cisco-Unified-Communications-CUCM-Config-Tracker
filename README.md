@@ -7,10 +7,10 @@ This script is designed for continuous monitoring of configuration changes in Ci
 ### Code Base Logic
 The script uses the CUCM AXL List Change API to monitor for any changes in the database. List change API provides the following details if there are any changes in the system.
 
-  **action** - indicates the type change: u is update, a is add, r is remove
-  **doGet** - Boolean value indicates when the client should perform a get operation to get the full details of the object.
-  **type** - Changed configuration item. Ex: DevicePool, RoutePattern, TransPattern.
-  **ChangedTags** - Contains name of the configuration field that was changed and the changed value. For example, Changed Configuration field is                      Description and the value is "Jon Doe".
+  **action** - indicates the type change: u is update, a is add, r is remove  
+  **doGet** - Boolean value indicates when the client should perform a get operation to get the full details of the object.  
+  **type** - Changed configuration item. Ex: DevicePool, RoutePattern, TransPattern.  
+  **ChangedTags** - Contains name of the configuration field that was changed and the changed value. For example, Changed Configuration field is Description and the value is "Jon Doe".  
   Based on the action keyword, it can be determined whether this was the new add or update or remove.
 
 Here is the sample output, which indicates that the new routepattern was added, routelist was updated, devicepool name was changed and provides the old value and new value. UUID field indicates the unique identifier of the each configuration item. This UUID field is being used to retrieve the new config from CUCM and update the running config file.
