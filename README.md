@@ -1,10 +1,11 @@
 # Cisco-Unified-Communications-CUCM-Configuration-Tracker
 Scripts for managing Cisco Unified Communications Manager
 
-This script is designed for continuous monitoring of configuration changes in Cisco Unified Communications Manager and emails admin team with the change details if the change is detected and it is different from the standard base config that was configured during the initial installation. The admin can then review the change and commit, if it was intentional or revert if it was for testing or accidental change.
+## Use Case
+This script is designed for continuous monitoring of configuration changes in Cisco Unified Communications Manager and emails admin team with the change details, if the change is detected and it is different from the standard base config that was configured during the initial installation. The admin can then review the change and commit the new config to the base config, if it was intentional or revert if it was for testing or accidental change.
 
-**Code Base Logic**
-The script uses the CUCM AXL List Change API to monitor for any changes in the dataase. List change API provides the following details if there are any changes in the system.
+### Code Base Logic
+The script uses the CUCM AXL List Change API to monitor for any changes in the database. List change API provides the following details if there are any changes in the system.
 
   **action** - indicates the type change: u is update, a is add, r is remove
   **doGet** - Boolean value indicates when the client should perform a get operation to get the full details of the object.
@@ -18,7 +19,13 @@ Here is the sample output, which indicates that the new routepattern was added, 
 
 Upon receiving the change details, based on the type, action and the change details, the script pulls the complete configuration details from CUCM using sql query and updates the corresponding running configuration file and emails the admin team notifiying the changed item and the procedure to commit the change to the base config.
 
-**Requirements**
+## Installation
+
+Clone the repo
+
+`git clone https://github.com/usharanig92/Cisco-Unified-Communications-CUCM-Config-Tracker.git
+`
+This script uses the uv to install the required depenedencies. The script can be simply run with the command `uv run cucmconfigtracker.py <necessary-arguments>`.
 
 BaseConfigFile - Create the directory called baseconfig and copy the csv templates present under the template folder to store the base config. 
 RunningConfigFile - Create the directory called runningconfig in the same location as baseconfig. Nothing else needed.
