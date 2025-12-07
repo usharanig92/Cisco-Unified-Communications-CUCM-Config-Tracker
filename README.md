@@ -23,7 +23,9 @@ Upon receiving the change details, based on the type, action and the change deta
 
 Clone the repo
 
-`git clone https://github.com/usharanig92/Cisco-Unified-Communications-CUCM-Config-Tracker.git`  
+`git
+git clone https://github.com/usharanig92/Cisco-Unified-Communications-CUCM-Config-Tracker.git
+`  
 
 This script uses uv to install the required depenedencies. The script can be simply run with the command `uv run cucmconfigtracker.py <necessary-arguments>`. Refer https://github.com/astral-sh/uv to know more about uv package manager.
 
