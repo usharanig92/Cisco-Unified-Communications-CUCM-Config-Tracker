@@ -29,10 +29,10 @@ git clone https://github.com/usharanig92/Cisco-Unified-Communications-CUCM-Confi
 
 ```  
 
-This script uses uv to install the required depenedencies. The script can be simply run with the command `uv run cucmconfigtracker.py <necessary-arguments>`. Refer https://github.com/astral-sh/uv to know more about uv package manager.
+This script uses uv to install the required depenedencies. The script can be simply run with the command `uv run cucmconfigtracker.py <necessary-arguments>`. Refer https://github.com/astral-sh/uv to know more about uv package manager.  
 
-BaseConfigFile - Create the directory called baseconfig and copy the csv templates present under the template folder to store the base config. 
-RunningConfigFile - Create the directory called runningconfig in the same location as baseconfig. Nothing else needed.
+**BaseConfig** - Create the directory called baseconfig and copy the csv templates present under the template folder to store the base config.  
+**RunningConfig** - Create the directory called runningconfig in the same location as baseconfig. Nothing else needed.  
 
 This location of the BaseConfigFile and RunningConfigFile is required in the script to constantly update the running config and the base config.  In the script the below function refers to the location of the config paths. Please update this function with the location of the above files.
 
