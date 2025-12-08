@@ -63,4 +63,6 @@ Initialize the script by selecting the command list_changes with the mode parame
 
 <img width="1390" height="476" alt="image" src="https://github.com/user-attachments/assets/943cbed1-74f4-4d25-9eb9-ebac5b314f63" />
 
+## Tool Highlights
+The biggest benefit of this tool is that, it works on push mechanism from CUCM instead of constantly polling CUCM for changes. This significantly reduces API load on the server and improves application efficiency. And this script uses sql query to pull the configurations from CUCM, which is a thin AXL API and does not consume high CPU or memory for execution.
 
