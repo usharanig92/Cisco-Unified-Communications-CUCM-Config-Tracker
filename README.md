@@ -47,7 +47,38 @@ def get_config_relative_path(which_config, name, mode):
 
 ## Usage
 
-The csv's that are copied into the baseconfig directory are empty files. When the script first runs, it copies the header from the baseconfig template csv's and create a running config csv in the runningconfig directory. Then the sql query is been made to the CUCM to pull all the config and updates the runningconfig csv's.
+Add the cucmpub information in the hostname variable under create_service function to create a AXL service request to the CUCM. Each argument will create the AXL service to the CUCM for performing API operations.
+
+```Python
+def create_service(*, username, certroot, mode):
+    wsdl = WSDL_RELATIVE_PATH
+    hostname = f"cucmpub.cisco.com" # Add the cucmpub hostname or ip address
+    host = socket.getfqdn(hostname)
+    location = f"https://{host}:8443/axl/"
+    binding = "{http://www.cisco.com/AXLAPIService/}AXLAPIBinding"
+    history = HistoryPlugin()
+    auth_header = "password_for_cucm" # read from vault or env file. do not store in source code
+    session = Session()
+    session.verify = certroot
+    session.auth = HTTPBasicAuth(username, auth_header) # username would be the username in CUCM, which has the AXL permission.
+    settings = Settings(strict=False, xml_huge_tree=True)
+    transport = Transport(cache=SqliteCache(), session=session, timeout=20)
+    plugins = [RequestResponseLoggingPlugin()] if DEBUG else [history]
+    client = Client(wsdl=wsdl, settings=settings, transport=transport, plugins=plugins)
+    return client.create_service(binding, location), history
+```
+
+```mermaid
+flowchart TD;
+CUCM_pushes_recent_changes_as_a_response_for_list_change_function --> `list_changes`
+`list_changes` --> executes_sql_query_to_CUCM_to_get_the_changed_information
+`list_changes` --> sends_the_details_pulled_from_cucm_to_the_update_running_config_function --> `update_running_config`
+`update_running_config` --> updates_running_config_csv_files_with_the_details_pulled_from_cucm
+`update_running_config` --> compares_running_config_csv_with_base_config_csv
+`update_running_config` --> sends_email_if_base_and_running_config_are_different --> admin_commits_change_by_calling_update_base_config --> `update_base_config` --> updates_base_config_with_config_in_running_config_and_notifies_admin_team
+```
+
+The csv's that are copied into the baseconfig directory are empty files. When the script first runs, it creates a running config csv in the runningconfig directory using the header from the baseconfig template csv's. Then the sql query is been made to the CUCM to pull all the config and updates the runningconfig csv's.
 
 After the first run, all the configurations from CUCM has been pulled and stored as a csv in the running config. Now, the templates in the baseconfig directory can be replaced with the runningconfig csv's by directly copying over the files (only during the initial setup and then monitor and commit going forward)
 
