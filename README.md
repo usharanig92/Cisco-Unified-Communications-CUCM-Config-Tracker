@@ -1,4 +1,6 @@
 # Cisco-Unified-Communications-CUCM-Configuration-Tracker
+[![published](https://static.production.devnetcloud.com/codeexchange/assets/images/devnet-published.svg)](https://developer.cisco.com/codeexchange/github/repo/usharanig92/Cisco-Unified-Communications-CUCM-Config-Tracker)
+
 Scripts for managing Cisco Unified Communications Manager
 
 ## Use Case
