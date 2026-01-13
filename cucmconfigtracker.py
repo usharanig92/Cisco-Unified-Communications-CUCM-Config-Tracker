@@ -17,25 +17,6 @@ To run this application using uv, use the command "uv run <script_name> <require
 
 """
 
-"""
-This Script tracks the changes in the CUCM system configurations and reports if any changes
-are detected. It compares the original and the changed configuration and shows which items
-have changed, added or removed. The admin who made the change can then commit it
-with the commit message.
-
-The commit command will update the base config with the changed information and emails
-the team with the summary of the changes and the committer information along with the
-commit message.
-
-In this script I used uv to install the required dependencies on-demand instead of running
-in a virtual environment. Specifying the required modules under script block as shown below
-will install the specified modules during the script run and do the clean up automatically.
-Refer here to know more about uv https://github.com/astral-sh/uv
-
-To run this application using uv, use the command "uv run <script_name> <required_arguments>"
-
-"""
-
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
