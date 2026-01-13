@@ -918,7 +918,7 @@ def load_or_prompt_config() -> dict:
             message="Enter the location to find the CUCM AXL API WSDL path for the version of your CUCM",
         ).execute(),
         "config_relative_path": inquirer.text(
-            message="Enter the location of the csv configuration files",
+            message="Enter the location of the config relative path",
         ).execute(),
     }
 
