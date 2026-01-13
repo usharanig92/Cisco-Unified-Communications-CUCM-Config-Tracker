@@ -17,24 +17,44 @@ To run this application using uv, use the command "uv run <script_name> <require
 
 """
 
+"""
+This Script tracks the changes in the CUCM system configurations and reports if any changes
+are detected. It compares the original and the changed configuration and shows which items
+have changed, added or removed. The admin who made the change can then commit it
+with the commit message.
+
+The commit command will update the base config with the changed information and emails
+the team with the summary of the changes and the committer information along with the
+commit message.
+
+In this script I used uv to install the required dependencies on-demand instead of running
+in a virtual environment. Specifying the required modules under script block as shown below
+will install the specified modules during the script run and do the clean up automatically.
+Refer here to know more about uv https://github.com/astral-sh/uv
+
+To run this application using uv, use the command "uv run <script_name> <required_arguments>"
+
+"""
+
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
 #     "pandas",
-#     "numpy",
-#     "lxml.etree",
+#     "numpy>=2.0.0",
+#     "lxml",
 #     "paramiko",
-#     "paramiko_expect",
+#     "paramiko-expect",
 #     "tabulate",
 #     "requests",
 #     "zeep",
+#     "inquirerpy",
 # ]
 # ///
 
 import argparse
 import csv
-from csv import reader
 import getpass
+import json
 import logging
 import os
 import re
@@ -42,29 +62,29 @@ import socket
 import subprocess
 import sys
 import time
+from csv import reader
 from datetime import datetime
+from pathlib import Path
 from shutil import copyfile
+from typing import Any
 from xml.etree import ElementTree as ET
 
-import pandas as pd
 import numpy as np
-from lxml import etree
+import pandas as pd
 import paramiko
+from InquirerPy import inquirer
+from lxml import etree
 from paramiko import SSHClient
 from paramiko_expect import SSHClientInteraction
 from requests import Session
 from requests.auth import HTTPBasicAuth
 from tabulate import tabulate
-from zeep.client import Client
 from zeep.cache import SqliteCache
+from zeep.client import Client
 from zeep.exceptions import Fault
-from zeep.settings import Settings
 from zeep.plugins import HistoryPlugin, Plugin
+from zeep.settings import Settings
 from zeep.transports import Transport
-
-# Relative paths for the CUCM AXL API wsdl file
-
-WSDL_RELATIVE_PATH = "/usr/usha/application/unified-communications/axlsqltoolkit/schema/12.5/AXLAPI.wsdl"
 
 
 class RequestResponseLoggingPlugin(Plugin):
@@ -94,96 +114,49 @@ class ServerCredentialError(Exception):
 DEBUG = False
 
 
-def does_last_response_report_credential_error(history):
+def does_last_response_report_credential_error(history) -> bool:
     """Analyses the response for credential error"""
     return "HTTP Status 401" in ET.tostring(history.last_received["envelope"]).decode()
 
 
-def get_config_relative_path(which_config, name, mode):
-    path = f"/usr/usha/application/unified-communications/{mode}/configs"
-    config_path = os.path.join(path, which_config, name) + ".csv"
+def get_config_relative_path(which_config, config_relative_path, config_item) -> str:
+    path = config_relative_path
+    config_path = os.path.join(path, which_config, config_item) + ".csv"
     return config_path
 
 
-def update_runningconfig(name, resp, mode, email_recipient):
-    with open(get_config_relative_path("baseconfig", name, mode)) as csvfile:
-        csv_reader = reader(csvfile)
-        header = next(csv_reader)
-    filepath = get_config_relative_path("runningconfig", name, mode)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-    with open(filepath, "a+") as file:
-        fieldnames = header
-        writer = csv.writer(file)
-        writer.writerow(fieldnames)
-        rowXml = ""
-        try:
-            rowXml = resp["return"]["row"]
-        except Exception as e:
-            print("Unable to retrieve anything for " + name + str(e))
-            pass
-        for i in range(0, len(rowXml)):
-            data = []
-            for j in range(0, len(header)):
-                # check if the root element has children, and append the children details.
-                if len(rowXml[i][j]):
-                    child_values = []
-                    for child in rowXml[i][j]:
-                        child_values.append(f"{child.tag} - {child.text}")
-                    data.append(child_values)
-                data.append(rowXml[i][j].text)
-            writer.writerow(data)
-    result = compare_running_with_base(name, mode)
-    if result:
-        date = datetime.now().strftime("%Y_%m_%d")
-        subject = f"{date} : Changes made in the call manager has been commited to running-config. Please update base-config"
-        body = (
-            "Please review and either update base configs or roll back changes in CUCM.<br /><br />"
-            f"To commit the change run the below command <br /><br />"
-            f"<strong> cucmconfigtracker update_base {name} <i> reason_for_change </i> --mode {mode} </strong> <br /><br />"
-            + result
-        )
-        email(
-            email_recipient=email_recipient,
-            subject=subject,
-            body=body,
-            mode=mode,
-        )
-    else:
-        pass
-
-    return result
+def email(*, cucmpub, email_recipient, subject, body) -> None:
+    subprocess.run(
+        [
+            "swiss",
+            "simplemail",
+            "-to",
+            email_recipient,
+            "-body",
+            body,
+            "-content-type",
+            "html",
+            "-subject",
+            subject,
+            "-from",
+            cucmpub,
+        ]
+    )
 
 
-def create_service(*, username, certroot, mode):
-    wsdl = WSDL_RELATIVE_PATH
-    hostname = f"cucmpub.cisco.com"
-    host = socket.getfqdn(hostname)
-    location = f"https://{host}:8443/axl/"
-    binding = "{http://www.cisco.com/AXLAPIService/}AXLAPIBinding"
-    history = HistoryPlugin()
-    auth_header = "password_for_cucm" # read from vault or env file. do not store in source code
-    session = Session()
-    session.verify = certroot
-    session.auth = HTTPBasicAuth(username, auth_header)
-    settings = Settings(strict=False, xml_huge_tree=True)
-    transport = Transport(cache=SqliteCache(), session=session, timeout=20)
-    plugins = [RequestResponseLoggingPlugin()] if DEBUG else [history]
-    client = Client(wsdl=wsdl, settings=settings, transport=transport, plugins=plugins)
-    return client.create_service(binding, location), history
-
-
-def compare_running_with_base(name, mode):
+def compare_running_with_base(config_relative_path, config_item) -> str:
     df1 = pd.read_csv(
-        get_config_relative_path("baseconfig", name, mode), index_col=False
+        get_config_relative_path("baseconfig", config_relative_path, config_item),
+        index_col=False,
     ).replace(np.nan, "")
     df2 = pd.read_csv(
-        get_config_relative_path("runningconfig", name, mode), index_col=False
+        get_config_relative_path("runningconfig", config_relative_path, config_item),
+        index_col=False,
     ).replace(np.nan, "")
     htmldiff = ""
     changed_index = []
     if df2.equals(df1):
-        logging.info(f"No changes were detected in {name}")
+        logging.info(f"No changes were detected in {config_item}")
     else:
         try:
             # pandas compare method compares only two dataframes of same number of colummns and rows.
@@ -195,9 +168,9 @@ def compare_running_with_base(name, mode):
                 columns={"self": "baseconfig", "other": "running_config"}
             )
             changed_index.append((diff.columns.get_level_values(0).to_list())[1::2])
-            htmldiff += f" <br />Following parameters have been modified in {name}: {changed_index} <br />"
+            htmldiff += f" <br />Following parameters have been modified in {config_item}: {changed_index} <br />"
             print(
-                f"\n\nFollowing parameters have been modified in the {name}: {changed_index} \n"
+                f"\n\nFollowing parameters have been modified in the {config_item}: {changed_index} \n"
             )
         except Exception:
             pass
@@ -223,7 +196,7 @@ def compare_running_with_base(name, mode):
             # Base config value is non zero, it means after removing the common items from baseconfig and runningconfig, baseconfig still has some rows,
             # so something was removed in the CUCM, but not updated in the base config.
             base_config_html = base_config.to_html()
-            body = f"<br />Changes detected in '{name}'. <br /> Below configs have been removed: <br />"
+            body = f"<br />Changes detected in '{config_item}'. <br /> Below configs have been removed: <br />"
             print(
                 body.replace("<br />", "\n"),
                 tabulate(
@@ -238,7 +211,7 @@ def compare_running_with_base(name, mode):
             # base config.
             running_config_html = running_config.to_html()
             body = "<br />Changes detected in '{csvname}'. <br /> Below configs have been added: <br />".format(
-                csvname=name
+                csvname=config_item
             )
             print(
                 body.replace("<br />", "\n"),
@@ -262,7 +235,7 @@ def compare_running_with_base(name, mode):
                     running_config_columns.insert(0, running_config.columns[0])
             base_config_html = (base_config[base_config_columns]).to_html()
             body = (
-                f"<br />Base configs and running configs has been modified for '{name}'. "
+                f"<br />Base configs and running configs has been modified for '{config_item}'. "
                 "<br />Configs in Base Repo: <br />"
             )
             print(
@@ -290,12 +263,86 @@ def compare_running_with_base(name, mode):
     return htmldiff
 
 
-def ssh_connect_output(mode, cmd):
-    hostname = f"cucmpub.cisco.com"
-    username = "admin"
+def update_runningconfig(
+    cucmpub, config_relative_path, config_item, resp, email_recipient
+) -> str:
+    with open(
+        get_config_relative_path("baseconfig", config_relative_path, config_item)
+    ) as csvfile:
+        csv_reader = reader(csvfile)
+        header = next(csv_reader)
+    filepath = get_config_relative_path(
+        "runningconfig", config_relative_path, config_item
+    )
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    with open(filepath, "a+") as file:
+        fieldnames = header
+        writer = csv.writer(file)
+        writer.writerow(fieldnames)
+        rowXml = ""
+        try:
+            rowXml = resp["return"]["row"]
+        except Exception as e:
+            print("Unable to retrieve anything for " + config_item + str(e))
+            pass
+        for i in range(0, len(rowXml)):
+            data = []
+            for j in range(0, len(header)):
+                # check if the root element has children, and append the children details.
+                if len(rowXml[i][j]):
+                    child_values = []
+                    for child in rowXml[i][j]:
+                        child_values.append(f"{child.tag} - {child.text}")  # pyright: ignore[reportAttributeAccessIssue]
+                    data.append(child_values)
+                data.append(rowXml[i][j].text)  # pyright: ignore[reportAttributeAccessIssue]
+            writer.writerow(data)
+    result = compare_running_with_base(config_relative_path, config_item)
+    if result:
+        date = datetime.now().strftime("%Y_%m_%d")
+        subject = f"{date} : Changes made in the call manager has been commited to running-config. Please update base-config"
+        body = (
+            "Please review and either update base configs or roll back changes in CUCM.<br /><br />"
+            f"To commit the change run the below command <br /><br />"
+            f"<strong> cucmconfigtracker update_base {config_item} <i> reason_for_change </i> </strong> <br /><br />"
+            + result
+        )
+        email(
+            cucmpub=cucmpub,
+            email_recipient=email_recipient,
+            subject=subject,
+            body=body,
+        )
+    else:
+        pass
+
+    return result
+
+
+def create_service(*, cucmpub, username, password, certroot, wsdl_path) -> tuple:
+    wsdl = wsdl_path
+    hostname = cucmpub
+    host = socket.getfqdn(hostname)
+    location = f"https://{host}:8443/axl/"
+    binding = "{http://www.cisco.com/AXLAPIService/}AXLAPIBinding"
+    history = HistoryPlugin()
+    auth_header = password
+    session = Session()
+    session.verify = certroot
+    session.auth = HTTPBasicAuth(username, auth_header)
+    settings = Settings(strict=False, xml_huge_tree=True)  # pyright: ignore[reportCallIssue]
+    transport = Transport(cache=SqliteCache(), session=session, timeout=20)
+    plugins = [RequestResponseLoggingPlugin()] if DEBUG else [history]
+    client = Client(wsdl=wsdl, settings=settings, transport=transport, plugins=plugins)
+    return client.create_service(binding, location), history
+
+
+def ssh_connect_output(cucmpub, cucm_cli_username, cucm_cli_password, cmd) -> str:
+    hostname = cucmpub
+    username = cucm_cli_username
     with SSHClient() as ssh:
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        auth_header = "password_for_cucm_cli"
+        auth_header = cucm_cli_password
         ssh.connect(hostname=hostname, username=username, password=auth_header)
         interact = SSHClientInteraction(ssh, display=False)
         interact.expect("admin:")
@@ -305,9 +352,14 @@ def ssh_connect_output(mode, cmd):
         return output
 
 
-def get_presence_server_high_availability_and_save_in_csv(mode):
+def get_presence_server_high_availability_and_save_in_csv(
+    cucmpub,
+    cucm_cli_username,
+    cucm_cli_password,
+    config_relative_path,
+) -> None:
     cmd = "utils ha status"
-    resp = ssh_connect_output(mode, cmd)
+    resp = ssh_connect_output(cucmpub, cucm_cli_username, cucm_cli_password, cmd)
     data = re.findall(
         r"\tName:\s+(\S+).*?State:\s+(\S+).*?Reason:\s+(\S+)", resp, re.DOTALL
     )
@@ -317,12 +369,16 @@ def get_presence_server_high_availability_and_save_in_csv(mode):
         columns=["Name", "State", "Reason"],
     )
     export_path = get_config_relative_path(
-        "runningconfig", "Imp_High_Availability_Status", mode
+        "runningconfig",
+        config_relative_path,
+        "Imp_High_Availability_Status",
     )
     df.to_csv(export_path, index=False)
 
 
-def auto_check(service, history, mode, email_recipient):
+def auto_check(
+    cucmpub, config_relative_path, service, history, email_recipient
+) -> None:
     result = ""
     for template, sql in templates.items():
         try:
@@ -332,36 +388,25 @@ def auto_check(service, history, mode, email_recipient):
                 raise ServerCredentialError(err)
             else:
                 raise
-        result += update_runningconfig(template, resp, mode, email_recipient)
+        result += update_runningconfig(
+            cucmpub, config_relative_path, template, resp, email_recipient
+        )
     if result:
         print("Base and Running configs has been modified")
     else:
         print("No changes Detected")
 
 
-def email(*, email_recipient, subject, body, mode):
-    subprocess.run(
-        [
-            "swiss",
-            "simplemail",
-            "-to",
-            email_recipient,
-            "-body",
-            body,
-            "-content-type",
-            "html",
-            "-subject",
-            subject,
-            "-from",
-            f"location-{mode}-cucm",
-        ]
+def update_baseconfig(
+    cucmpub, config_relative_path, config_item, username, commit, email_recipient
+) -> None:
+    source = get_config_relative_path(
+        "runningconfig", config_relative_path, config_item
     )
-
-
-def update_baseconfig(name, username, mode, commit, email_recipient):
-    source = get_config_relative_path("runningconfig", name, mode)
-    destination = get_config_relative_path("baseconfig", name, mode)
-    diff = compare_running_with_base(name, mode)
+    destination = get_config_relative_path(
+        "baseconfig", config_relative_path, config_item
+    )
+    diff = compare_running_with_base(config_relative_path, config_item)
     if diff:
         body = (
             f"New configs have been committed successfully from the above running config to the base repo <br /><br />"
@@ -369,10 +414,10 @@ def update_baseconfig(name, username, mode, commit, email_recipient):
         )
         subject = f"CUCM Configs: Base config updated by {username}"
         email(
+            cucmpub=cucmpub,
             email_recipient=email_recipient,
             subject=subject,
             body=body,
-            mode=mode,
         )
         copyfile(source, destination)
         print(
@@ -381,7 +426,7 @@ def update_baseconfig(name, username, mode, commit, email_recipient):
         )
 
 
-def execute_sql_query(service, history, sql):
+def execute_sql_query(service, history, sql) -> Any:
     try:
         resp = service.executeSQLQuery(sql)
     except Fault as err:
@@ -392,9 +437,18 @@ def execute_sql_query(service, history, sql):
     return resp
 
 
-def list_change(service, history, mode, templates, email_recipient):
+def list_change(
+    cucmpub,
+    config_relative_path,
+    cucm_cli_username,
+    cucm_cli_password,
+    service,
+    history,
+    templates,
+    email_recipient,
+) -> int:
     try:
-        auto_check(service, history, mode, email_recipient)
+        auto_check(cucmpub, config_relative_path, service, history, email_recipient)
         resp = service.listChange()
     except Fault as err:
         if does_last_response_report_credential_error(history):
@@ -468,14 +522,18 @@ def list_change(service, history, mode, templates, email_recipient):
             try:
                 for change in change_types:
                     response = execute_sql_query(service, history, templates[change])
-                    update_runningconfig(change, response, mode, email_recipient)
+                    update_runningconfig(
+                        cucmpub, config_relative_path, change, response, email_recipient
+                    )
             except Exception as e:
                 print("Unable to update the running config" + str(e))
                 break
 
         # Update the next highest change Id
         next_start_change_id = resp.queueInfo.nextStartChangeId
-        get_presence_server_high_availability_and_save_in_csv(mode)
+        get_presence_server_high_availability_and_save_in_csv(
+            cucmpub, cucm_cli_username, cucm_cli_password, config_relative_path
+        )
         time.sleep(600)
 
     # We should not exit from the "while True" loop above unless there is an
@@ -483,15 +541,15 @@ def list_change(service, history, mode, templates, email_recipient):
     return 1
 
 
-def ucconfig_diff_check(valid_configitem, mode):
+def ucconfig_diff_check(config_relative_path, config_item) -> int:
     diff_items = []
-    valid_configitem.append("Imp_High_Availability_Status")
-    for item in valid_configitem:
+    config_item.append("Imp_High_Availability_Status")
+    for item in config_item:
         df1 = pd.read_csv(
-            get_config_relative_path("baseconfig", item, mode)
+            get_config_relative_path("baseconfig", config_relative_path, item)
         ).replace(np.nan, "")
         df2 = pd.read_csv(
-            get_config_relative_path("runningconfig", item, mode)
+            get_config_relative_path("runningconfig", config_relative_path, item)
         ).replace(np.nan, "")
         if df2.equals(df1):
             logging.info(f"No changes were detected in {item}")
@@ -844,8 +902,71 @@ templates = {
 }
 
 
-def main():
+CONFIG_FILE = Path.home() / ".cucmconfigtracker.json"
+
+
+def load_or_prompt_config() -> dict:
+    """Load config from file or prompt user and save."""
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE) as f:
+            config = json.load(f)
+        print(f"Loaded config from {CONFIG_FILE}")
+
+        # Ask if user wants to reconfigure
+        if inquirer.confirm(message="Use saved configuration?", default=True).execute():
+            return config
+
+    # Prompt for all values
+    config = {
+        "cucmpub": inquirer.text(
+            message="Enter the CUCM node name",
+        ).execute(),
+        "cucm_axl_username": inquirer.text(
+            message="Enter the CUCM username which has AXL API access",
+        ).execute(),
+        "cucm_axl_password": inquirer.secret(
+            message="Enter the password for the above AXL username",
+        ).execute(),
+        "cucm_cli_username": inquirer.text(
+            message="Enter the CUCM username which has admin CLI access",
+        ).execute(),
+        "cucm_cli_password": inquirer.secret(
+            message="Enter the password for the above CLI username",
+        ).execute(),
+        "cucm_axl_api_wsdl_path": inquirer.text(
+            message="Enter the location to find the CUCM AXL API WSDL path for the version of your CUCM",
+        ).execute(),
+        "config_relative_path": inquirer.text(
+            message="Enter the location of the csv configuration files",
+        ).execute(),
+    }
+
+    # Save config
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+    CONFIG_FILE.chmod(0o600)  # Restrict permissions since it contains passwords
+    print(f"Config saved to {CONFIG_FILE}")
+
+    return config
+
+
+def main() -> int:
+    # Add this at the very beginning, before load_or_prompt_config()
+    if "--reconfigure" in sys.argv:
+        sys.argv.remove("--reconfigure")
+        if CONFIG_FILE.exists():
+            CONFIG_FILE.unlink()
+
     certroot = os.getenv("REQUESTS_CA_BUNDLE", default="/etc/pki/tls/cert.pem")
+    # Load or prompt for config
+    config = load_or_prompt_config()
+    cucmpub = config["cucmpub"]
+    cucm_axl_username = config["cucm_axl_username"]
+    cucm_axl_password = config["cucm_axl_password"]
+    cucm_cli_username = config["cucm_cli_username"]
+    cucm_cli_password = config["cucm_cli_password"]
+    cucm_axl_api_wsdl_path = config["cucm_axl_api_wsdl_path"]
+    config_relative_path = config["config_relative_path"]
     config_parent_parser = argparse.ArgumentParser(add_help=False)
     config_parent_parser.add_argument(
         "config_item",
@@ -857,14 +978,6 @@ def main():
         dest="email_recipient",
         default="uc-admin",
         help="Enter the email address to send the change summary details to",
-    )
-    mode_parent_parser = argparse.ArgumentParser(add_help=False)
-    mode_parent_parser.add_argument(
-        "--mode",
-        dest="mode",
-        choices=["dev", "prod"],
-        default="dev",
-        help="Specify the environment the check neeeds to run, Default is dev",
     )
     commit_parent_parser = argparse.ArgumentParser(add_help=False)
     commit_parent_parser.add_argument(
@@ -880,7 +993,6 @@ def main():
         parents=[
             config_parent_parser,
             email_recipient_parent_parser,
-            mode_parent_parser,
         ],
         help="Compares running config and base config of entered config item and notifies about changes, if any.",
     )
@@ -889,29 +1001,26 @@ def main():
         parents=[
             config_parent_parser,
             email_recipient_parent_parser,
-            mode_parent_parser,
             commit_parent_parser,
         ],
         help="Update the base config with the most recent running config of the entered config item.",
     )
     subparser.add_parser(
         "check_all",
-        parents=[email_recipient_parent_parser, mode_parent_parser],
+        parents=[email_recipient_parent_parser],
         help="Verifies all configs from the config items and notifies if there are any changes",
     )
     subparser.add_parser(
         "list_changes",
         help="List all the changes made in the database",
-        parents=[email_recipient_parent_parser, mode_parent_parser],
+        parents=[email_recipient_parent_parser],
     )
     subparser.add_parser(
         "uconfigs_check",
-        help="Command to run the selket check",
-        parents=[mode_parent_parser],
+        help="Command to run the monitoring check for all items, returns 0 if base and running configs are same, 1 if not",
     )
 
     args = parser.parse_args()
-    username = "apireadonly"
 
     valid_configitem = list(templates.keys())
     valid_configitem.sort()
@@ -929,17 +1038,20 @@ def main():
                 return 1
             else:
                 service, history = create_service(
-                    username=username,
+                    cucmpub=cucmpub,
+                    username=cucm_axl_username,
+                    password=cucm_axl_password,
                     certroot=certroot,
-                    mode=args.mode,
+                    wsdl_path=cucm_axl_api_wsdl_path,
                 )
                 sql = templates[configitem]
                 resp = execute_sql_query(service, history, sql)
                 try:
                     update_runningconfig(
+                        cucmpub,
+                        config_relative_path,
                         configitem,
                         resp,
-                        args.mode,
                         email_recipient=args.email_recipient,
                     )
                 except Exception as e:
@@ -956,40 +1068,49 @@ def main():
                 return 1
             else:
                 update_baseconfig(
+                    cucmpub,
+                    config_relative_path,
                     configitem,
                     getpass.getuser(),
-                    args.mode,
                     args.commit,
                     email_recipient=args.email_recipient,
                 )
         elif args.command == "check_all":
             service, history = create_service(
-                username=username,
+                cucmpub=cucmpub,
+                username=cucm_axl_username,
+                password=cucm_axl_password,
                 certroot=certroot,
-                mode=args.mode,
+                wsdl_path=cucm_axl_api_wsdl_path,
             )
             auto_check(
+                cucmpub,
+                config_relative_path,
                 service,
                 history,
-                args.mode,
                 email_recipient=args.email_recipient,
             )
         elif args.command == "list_changes":
             service, history = create_service(
-                username=username,
+                cucmpub=cucmpub,
+                username=cucm_axl_username,
+                password=cucm_axl_password,
                 certroot=certroot,
-                mode=args.mode,
+                wsdl_path=cucm_axl_api_wsdl_path,
             )
             exit_code = list_change(
+                cucmpub,
+                config_relative_path,
+                cucm_cli_username,
+                cucm_cli_password,
                 service,
                 history,
-                args.mode,
                 templates,
                 email_recipient=args.email_recipient,
             )
             return exit_code
         elif args.command == "uconfigs_check":
-            exit_code = ucconfig_diff_check(valid_configitem,args.mode)
+            exit_code = ucconfig_diff_check(config_relative_path, valid_configitem)
             return exit_code
         else:
             parser.print_help()
